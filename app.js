@@ -1,9 +1,10 @@
 /////// app.js
-
+const bcrypt = require("bcryptjs");
 const path = require("node:path");
 const { Pool } = require("pg");
 const express = require("express");
 const session = require("express-session");
+const pgSession = require("connect-pg-simple")(session);
 const passport = require("passport");
 const LocalStrategy = require('passport-local').Strategy;
 
@@ -20,7 +21,14 @@ const app = express();
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 
-app.use(session({ secret: "cats", resave: false, saveUninitialized: false }));
+app.use(session({ 
+  store: new pgSession({
+    pool: pool,
+    createTableIfMissing: true
+  }),
+  secret: "cats", resave: false, 
+  saveUninitialized: false 
+}));
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.urlencoded({ extended: false }));
@@ -34,9 +42,15 @@ passport.use(
       if (!user) {
         return done(null, false, { message: "Incorrect username" });
       }
-      if (user.password !== password) {
-        return done(null, false, { message: "Incorrect password" });
+      // if (user.password !== password) {
+      //   return done(null, false, { message: "Incorrect password" });
+      // }
+      const match = await bcrypt.compare(password, user.password);
+      if (!match) {
+        // passwords do not match!
+        return done(null, false, { message: "Incorrect password" })
       }
+
       return done(null, user);
     } catch(err) {
       return done(err);
@@ -86,9 +100,10 @@ app.get("/log-out", (req, res, next) => {
 app.get("/sign-up", (req, res) => res.render("sign-up-form"));
 app.post("/sign-up", async (req, res, next) => {
   try {
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
     await pool.query("INSERT INTO users (username, password) VALUES ($1, $2)", [
       req.body.username,
-      req.body.password,
+      hashedPassword,
     ]);
     res.redirect("/");
   } catch(err) {
