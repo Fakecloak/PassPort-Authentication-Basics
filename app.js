@@ -21,6 +21,7 @@ app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 
 app.use(session({ secret: "cats", resave: false, saveUninitialized: false }));
+app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.urlencoded({ extended: false }));
 
@@ -59,7 +60,10 @@ passport.deserializeUser(async (id, done) => {
 });
 
 
-app.get("/", (req, res) => res.render("index"));
+app.get("/", (req, res) => {
+  res.render("index", { user: req.user });
+});
+
 app.post(
   "/log-in",
   passport.authenticate("local", {
@@ -68,6 +72,16 @@ app.post(
     failureMessage: true,
   })
 );
+
+app.get("/log-out", (req, res, next) => {
+  req.logout((err) => {
+    if (err) {
+      return next(err);
+    }
+    res.redirect("/");
+  });
+});
+
 
 app.get("/sign-up", (req, res) => res.render("sign-up-form"));
 app.post("/sign-up", async (req, res, next) => {
